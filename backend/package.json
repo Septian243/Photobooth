@@ -1,0 +1,16 @@
+{
+  "name": "photobooth-camera-connector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local connector for Sony Imaging Edge Desktop photo folders",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
+    "googleapis": "^148.0.0",
+    "ws": "^8.18.0"
+  }
+}

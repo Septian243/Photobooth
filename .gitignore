@@ -22,6 +22,5 @@ yarn-error.log*
 
 # local connector configuration
 backend/.env
-backend/.env.*
-
-CAMERA_BRIDGE.md
+backend/credentials.json
+backend/token.json

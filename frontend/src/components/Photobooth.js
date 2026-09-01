@@ -23,6 +23,8 @@ const CAMERA_BRIDGE_URL = process.env.REACT_APP_CAMERA_BRIDGE_URL || "ws://127.0
 export default function PhotoBooth() {
     const canvasRef = useRef(null);
     const frameImgRef = useRef(null);
+    const socketRef = useRef(null);
+    const autoSaveKeyRef = useRef(null);
 
     const slots = [PHOTO_AREA];
 
@@ -125,7 +127,7 @@ export default function PhotoBooth() {
     };
 
     // photos
-    const addPhoto = img => {
+    const addPhoto = (img, sourceName = null) => {
         if (photoCountRef.current >= 1) return;
         photoCountRef.current = 1;
 
@@ -138,7 +140,15 @@ export default function PhotoBooth() {
 
         setPhotos(p => [
             ...p,
-            { img, slotIndex: photoCount, scale, offsetX, offsetY }
+            {
+                id: `${Date.now()}-${Math.random()}`,
+                img,
+                sourceName,
+                slotIndex: photoCount,
+                scale,
+                offsetX,
+                offsetY,
+            }
         ]);
 
         setCanTakePhoto(true);
@@ -162,11 +172,11 @@ export default function PhotoBooth() {
         let reconnectTimer;
         let stopped = false;
 
-        const loadPhoto = (source, mimeType = "image/jpeg") => {
+        const loadPhoto = (source, mimeType = "image/jpeg", sourceName = null) => {
             if (!source || !selectedFrameRef.current || modeRef.current !== "photo") return;
 
             const img = new Image();
-            img.onload = () => addPhotoRef.current(img);
+            img.onload = () => addPhotoRef.current(img, sourceName);
             img.src = source.startsWith("data:")
                 ? source
                 : `data:${mimeType};base64,${source}`;
@@ -198,7 +208,7 @@ export default function PhotoBooth() {
             }
 
             if (message.type === "photo" && message.data) {
-                loadPhoto(message.data, message.mimeType || "image/jpeg");
+                loadPhoto(message.data, message.mimeType || "image/jpeg", message.name || null);
             }
 
             if (message.type === "camera" || message.type === "status") {
@@ -215,12 +225,14 @@ export default function PhotoBooth() {
             try {
                 socket = new WebSocket(CAMERA_BRIDGE_URL);
                 socket.onopen = () => {
+                    socketRef.current = socket;
                     setCameraStatus("waiting");
                     socket.send(JSON.stringify({ type: "subscribe", events: ["camera", "photo"] }));
                 };
                 socket.onmessage = handleMessage;
                 socket.onerror = () => socket.close();
                 socket.onclose = () => {
+                    if (socketRef.current === socket) socketRef.current = null;
                     setCameraStatus("unavailable");
                     if (!stopped) reconnectTimer = setTimeout(connect, 3000);
                 };
@@ -235,8 +247,25 @@ export default function PhotoBooth() {
             stopped = true;
             clearTimeout(reconnectTimer);
             if (socket) socket.close();
+            socketRef.current = null;
         };
     }, []);
+
+    useEffect(() => {
+        const photo = photos[0];
+        const socket = socketRef.current;
+        if (!photo || !canvasRef.current || !socket || socket.readyState !== WebSocket.OPEN) return;
+        if (autoSaveKeyRef.current === photo.id) return;
+
+        const data = canvasRef.current.toDataURL("image/png");
+        socket.send(JSON.stringify({
+            type: "photo:save",
+            sourceName: photo.sourceName,
+            mimeType: "image/png",
+            data,
+        }));
+        autoSaveKeyRef.current = photo.id;
+    }, [photos, cameraStatus]);
 
     const uploadPhoto = e => {
         const file = e.target.files[0];
