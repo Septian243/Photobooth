@@ -1,4 +1,21 @@
-# Getting Started with Create React App
+# Photobooth
+
+Project ini dipisah menjadi dua bagian:
+
+- `frontend/` berisi aplikasi React photobooth.
+- `backend/` disiapkan untuk connector kamera dan sengaja masih kosong.
+
+Jalankan frontend dari terminal sendiri:
+
+```text
+cd frontend
+npm run dev
+```
+
+Backend belum memiliki program untuk dijalankan. Nanti connector DSLR akan
+ditambahkan di folder `backend/` setelah tipe kamera ditentukan.
+
+## Create React App reference
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
