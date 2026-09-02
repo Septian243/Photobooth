@@ -37,10 +37,11 @@ const GOOGLE_TOKEN_PATH = path.resolve(process.env.GOOGLE_TOKEN_PATH || path.joi
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png"]);
 const watchedFolder = path.resolve(PHOTO_DIR);
 const clients = new Set();
-const seenFiles = new Set();
+const seenFiles = new Map();
 const pendingFiles = new Map();
 let folderAvailable = false;
 let drivePromise = null;
+let lastDeliveredMtime = 0;
 
 function sendJson(socket, message) {
   if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -66,7 +67,20 @@ async function listImages() {
   try {
     const entries = await fs.promises.readdir(watchedFolder, { withFileTypes: true });
     folderAvailable = true;
-    return entries.filter((entry) => entry.isFile() && isImage(entry.name)).map((entry) => entry.name);
+    const imageEntries = entries.filter((entry) => entry.isFile() && isImage(entry.name));
+    const images = await Promise.all(imageEntries.map(async (entry) => {
+      try {
+        const stats = await fs.promises.stat(path.join(watchedFolder, entry.name));
+        return { name: entry.name, modifiedAt: stats.mtimeMs };
+      } catch (error) {
+        return null;
+      }
+    }));
+
+    return images
+      .filter(Boolean)
+      .sort((a, b) => b.modifiedAt - a.modifiedAt)
+      .map((image) => image.name);
   } catch (error) {
     folderAvailable = false;
     return [];
@@ -88,10 +102,26 @@ async function fileIsStable(filePath, fileName) {
   }
 }
 
+async function fileSignature(filePath) {
+  try {
+    const stats = await fs.promises.stat(filePath);
+    return `${stats.size}:${stats.mtimeMs}`;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function fileHasChanged(fileName) {
+  const signature = await fileSignature(path.join(watchedFolder, fileName));
+  return Boolean(signature && seenFiles.get(fileName) !== signature);
+}
+
 async function sendPhoto(fileName) {
-  if (seenFiles.has(fileName) || clients.size === 0) return;
+  if (clients.size === 0) return false;
   const filePath = path.join(watchedFolder, fileName);
-  if (!(await fileIsStable(filePath, fileName))) return;
+  if (!(await fileIsStable(filePath, fileName))) return false;
+  const signature = await fileSignature(filePath);
+  if (!signature || seenFiles.get(fileName) === signature) return false;
 
   try {
     const buffer = await fs.promises.readFile(filePath);
@@ -102,9 +132,11 @@ async function sendPhoto(fileName) {
       mimeType,
       data: `data:${mimeType};base64,${buffer.toString("base64")}`,
     });
-    seenFiles.add(fileName);
+    seenFiles.set(fileName, signature);
+    return true;
   } catch (error) {
     console.warn(`Gagal membaca foto ${fileName}: ${error.message}`);
+    return false;
   }
 }
 
@@ -171,7 +203,7 @@ async function saveFramedPhoto(message, socket) {
       await fs.promises.unlink(path.join(watchedFolder, sourceName)).catch((error) => {
         if (error.code !== "ENOENT") throw error;
       });
-      seenFiles.add(sourceName);
+      seenFiles.delete(sourceName);
       pendingFiles.delete(sourceName);
     }
 
@@ -197,7 +229,7 @@ async function discardSourcePhoto(message, socket) {
     await fs.promises.unlink(path.join(watchedFolder, sourceName)).catch((error) => {
       if (error.code !== "ENOENT") throw error;
     });
-    seenFiles.add(sourceName);
+    seenFiles.delete(sourceName);
     pendingFiles.delete(sourceName);
     sendJson(socket, { type: "photo:discarded", sourceName });
   } catch (error) {
@@ -207,7 +239,10 @@ async function discardSourcePhoto(message, socket) {
 
 async function markExistingFiles() {
   const files = await listImages();
-  for (const fileName of files) seenFiles.add(fileName);
+  for (const fileName of files) {
+    const signature = await fileSignature(path.join(watchedFolder, fileName));
+    if (signature) seenFiles.set(fileName, signature);
+  }
 }
 
 const server = new WebSocketServer({ host: "127.0.0.1", port: PORT });
@@ -241,8 +276,23 @@ setInterval(async () => {
   const wasAvailable = folderAvailable;
   const files = await listImages();
   if (wasAvailable !== folderAvailable) broadcast(cameraStatusMessage());
-  if (!folderAvailable) return;
-  for (const fileName of files) await sendPhoto(fileName);
+  if (!folderAvailable || clients.size === 0) return;
+  // Satu frame hanya menampilkan satu foto; prioritaskan file terbaru yang berubah.
+  for (const fileName of files) {
+    if (await fileHasChanged(fileName)) {
+      const modifiedAt = await fs.promises.stat(path.join(watchedFolder, fileName))
+        .then((stats) => stats.mtimeMs)
+        .catch(() => null);
+      if (modifiedAt !== null && modifiedAt <= lastDeliveredMtime) {
+        const signature = await fileSignature(path.join(watchedFolder, fileName));
+        if (signature) seenFiles.set(fileName, signature);
+        continue;
+      }
+      const delivered = await sendPhoto(fileName);
+      if (delivered && modifiedAt !== null) lastDeliveredMtime = modifiedAt;
+      break;
+    }
+  }
 }, POLL_INTERVAL_MS);
 
 process.on("SIGINT", () => server.close(() => process.exit(0)));

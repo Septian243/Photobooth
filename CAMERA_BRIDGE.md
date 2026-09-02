@@ -34,10 +34,18 @@ Setelah frame selesai dirender, frontend mengirim hasil frame ke connector:
 ```
 
 Jika Google Drive dikonfigurasi, connector meng-upload hasil ke folder Drive,
-lalu menghapus `sourceName` dari `PHOTO_DIR` setelah upload berhasil. Jika
-Google Drive tidak dikonfigurasi, pesan ini diabaikan dan tidak ada file yang
-dihapus. Untuk foto dari Upload foto uji, `sourceName` dikosongkan sehingga
-tidak ada file kamera yang dihapus.
+lalu menghapus `sourceName` dari `PHOTO_DIR` setelah upload berhasil. Frontend
+juga dapat mengirim pesan berikut saat pengguna mengunduh hasil atau memilih
+ambil ulang:
+
+```json
+{"type":"photo:discard","sourceName":"DSC0001.JPG"}
+```
+
+Connector kemudian menghapus `sourceName` dari `PHOTO_DIR`. Jika Google Drive
+tidak dikonfigurasi, pesan `photo:save` tidak menghapus file. Untuk foto dari
+Upload foto uji, `sourceName` dikosongkan sehingga tidak ada file kamera yang
+dihapus.
 
 Status yang dipakai:
 
@@ -45,8 +53,10 @@ Status yang dipakai:
 - `waiting`: connector aktif, tetapi belum ada DSLR yang terhubung.
 - `unavailable`: connector belum berjalan; Upload foto uji tetap tersedia.
 
-Photobooth hanya menerima satu foto untuk setiap frame yang dipilih. Setelah
-foto diterima, aplikasi otomatis berpindah ke mode dekorasi.
+Photobooth hanya menampilkan satu foto untuk setiap frame. Jika foto kamera
+baru masuk saat frame sudah berisi foto, foto terbaru menggantikan foto lama
+secara otomatis. Backend memprioritaskan file terbaru agar file lama tidak
+menimpa foto tersebut kembali.
 
 ## Connector Imaging Edge
 

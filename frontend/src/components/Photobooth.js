@@ -25,6 +25,12 @@ export default function Photobooth() {
 
     photosRef.current = photos;
 
+    const clearPhoto = useCallback(() => {
+        photosRef.current = [];
+        setPhotos([]);
+        setDriveSaveStatus("idle");
+    }, []);
+
     const drawCanvas = useCallback(() => {
         const canvas = canvasRef.current;
         const frame = frameImgRef.current;
@@ -80,9 +86,14 @@ export default function Photobooth() {
         drawCanvas();
     }, [photos, drawCanvas]);
 
-    const addPhoto = (img, sourceName = null) => {
-        if (photosRef.current.length >= 1) return;
+    const discardSourcePhoto = sourceName => {
+        const socket = socketRef.current;
+        if (sourceName && socket?.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "photo:discard", sourceName }));
+        }
+    };
 
+    const addPhoto = (img, sourceName = null) => {
         const slot = FRAME_SLOTS[0];
         const scale = Math.max(slot.width / img.width, slot.height / img.height);
         const drawWidth = img.width * scale;
@@ -99,6 +110,7 @@ export default function Photobooth() {
 
         photosRef.current = [photo];
         setPhotos([photo]);
+        setDriveSaveStatus("idle");
     };
 
     const addPhotoRef = useRef(addPhoto);
@@ -110,7 +122,7 @@ export default function Photobooth() {
         let stopped = false;
 
         const loadPhoto = (source, mimeType = "image/jpeg", sourceName = null) => {
-            if (!source || photosRef.current.length >= 1) return;
+            if (!source) return;
 
             const image = new Image();
             image.onload = () => addPhotoRef.current(image, sourceName);
@@ -153,7 +165,7 @@ export default function Photobooth() {
                 setCameraName(message.name || message.camera?.name || "");
             }
 
-            if (message.type === "photo:saved") setDriveSaveStatus("saved");
+            if (message.type === "photo:saved") clearPhoto();
             if (message.type === "photo:save-disabled") setDriveSaveStatus("disabled");
             if (message.type === "photo:save-error") setDriveSaveStatus("error");
         };
@@ -189,7 +201,7 @@ export default function Photobooth() {
             if (socket) socket.close();
             socketRef.current = null;
         };
-    }, []);
+    }, [clearPhoto]);
 
     const uploadPhoto = event => {
         const file = event.target.files[0];
@@ -209,14 +221,8 @@ export default function Photobooth() {
         const photo = photosRef.current[0];
         if (!photo) return;
 
-        const socket = socketRef.current;
-        if (photo.sourceName && socket?.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ type: "photo:discard", sourceName: photo.sourceName }));
-        }
-
-        photosRef.current = [];
-        setPhotos([]);
-        setDriveSaveStatus("idle");
+        discardSourcePhoto(photo.sourceName);
+        clearPhoto();
     };
 
     const saveToGoogleDrive = () => {
@@ -238,10 +244,13 @@ export default function Photobooth() {
 
     const downloadPhoto = () => {
         if (!canvasRef.current) return;
+        const photo = photosRef.current[0];
         const link = document.createElement("a");
         link.href = canvasRef.current.toDataURL("image/png");
         link.download = "photobooth.png";
         link.click();
+        discardSourcePhoto(photo?.sourceName);
+        clearPhoto();
     };
 
     const hasPhoto = photos.length > 0;
@@ -268,7 +277,11 @@ export default function Photobooth() {
                             </label>
                         )}
                         {hasPhoto && (
-                            <button style={buttonStyle} onClick={redoPhoto}>
+                            <button
+                                style={buttonStyle}
+                                onClick={redoPhoto}
+                                disabled={driveSaveStatus === "saving"}
+                            >
                                 Ambil ulang
                             </button>
                         )}

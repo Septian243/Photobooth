@@ -35,13 +35,20 @@ Ada dua aplikasi yang perlu dijalankan di laptop:
 
 - Satu frame berisi satu foto.
 - Foto dari kamera diterima otomatis melalui WebSocket.
+- Foto kamera terbaru otomatis menggantikan foto yang sedang tampil, tanpa perlu
+  klik **Ambil ulang** terlebih dahulu.
 - Upload foto manual untuk uji coba tanpa kamera.
 - Foto disesuaikan ke area frame dengan rasio tetap sehingga tidak gepeng.
 - Tombol **Ambil ulang** menghapus foto pada tampilan dan meminta connector
   menghapus file sumber kamera dari folder pantauan.
-- Tombol **Download** mengunduh hasil frame melalui browser.
+- Tombol **Download** mengunduh hasil frame melalui browser, lalu meminta
+  connector menghapus file sumber kamera dan mereset frame.
 - Tombol **Simpan ke Google Drive** bersifat opsional.
-- File sumber kamera baru dihapus setelah upload Google Drive berhasil.
+- Setelah **Download** atau **Simpan ke Google Drive** berhasil, tampilan frame
+  kembali kosong dan siap menerima foto berikutnya.
+- Saat foto kamera baru menggantikan foto lama, file sumber foto lama tetap
+  disimpan. File sumber kamera dihapus saat **Ambil ulang** atau **Download**.
+  Untuk **Simpan ke Google Drive**, file baru dihapus setelah upload berhasil.
 - Frame aktif saat ini adalah `frontend/public/assets/frames/Contoh2.png`.
 
 ## Struktur project
@@ -137,8 +144,12 @@ Keterangan:
 - `GOOGLE_TOKEN_PATH`: lokasi token login yang dibuat otomatis.
 
 Foto yang sudah ada sebelum backend dijalankan akan ditandai sebagai file
-lama dan tidak langsung dikirim. Ambil foto baru setelah connector aktif.
+ lama dan tidak langsung dikirim. Ambil foto baru setelah connector aktif. Jika
+ beberapa foto baru masuk bersamaan, connector mengurutkannya berdasarkan waktu
+ modifikasi terbaru dan hanya mengirim foto terbaru dari rangkaian tersebut.
 Backend hanya memantau file `.jpg`, `.jpeg`, dan `.png`.
+Jika file baru menggantikan file lama dengan nama yang sama, connector tetap
+mendeteksinya berdasarkan perubahan ukuran atau waktu modifikasi file.
 
 ## Setup kamera Sony melalui USB
 
@@ -270,8 +281,10 @@ Shutter kamera ditekan
 -> foto masuk ke frame secara otomatis
 ```
 
-Connector tidak menghapus foto saat baru diterima. File sumber tetap ada sampai
-pengguna menekan **Ambil ulang** atau upload hasil frame ke Google Drive berhasil.
+Connector tidak menghapus foto saat baru diterima. Jika foto kamera baru
+menggantikan foto lama, file sumber foto lama tetap berada di `PHOTO_DIR`. Foto
+yang sedang tampil tetap memiliki file sumber sampai pengguna menekan **Ambil
+ulang**, **Download**, atau upload hasil frame ke Google Drive berhasil.
 
 ## Menjalankan aplikasi penghubung
 
@@ -517,7 +530,10 @@ atau mengelola seluruh isi Drive.
 - Yang di-upload adalah hasil akhir frame dalam format PNG.
 - Upload hanya dimulai ketika tombol **Simpan ke Google Drive** diklik.
 - Jika upload berhasil, file sumber kamera di `PHOTO_DIR` dihapus.
+- Jika upload berhasil, tampilan frame juga direset agar siap untuk foto baru.
 - Jika upload gagal, file sumber kamera tidak dihapus.
+- Jika pengguna menekan **Download**, hasil frame diunduh lalu file sumber
+  kamera diminta untuk dihapus dan tampilan frame direset.
 - Jika Google Drive belum dikonfigurasi, tidak ada upload dan tidak ada file
   yang dihapus.
 - Foto dari **Upload foto uji** tidak memiliki file sumber kamera, sehingga
@@ -533,8 +549,11 @@ atau mengelola seluruh isi Drive.
    **Kamera terhubung**.
 4. Tekan shutter pada kamera.
 5. Tunggu foto masuk ke frame.
-6. Jika sudah sesuai, klik **Download** atau **Simpan ke Google Drive**.
-7. Jika tidak sesuai, klik **Ambil ulang**, lalu ambil foto baru dari kamera.
+6. Jika mengambil foto lagi, foto kamera terbaru otomatis menggantikan foto
+   sebelumnya.
+7. Jika sudah sesuai, klik **Download** atau **Simpan ke Google Drive**.
+8. Tombol **Ambil ulang** tetap tersedia jika ingin mengosongkan frame sebelum
+   mengambil foto berikutnya.
 
 ### Tanpa kamera
 
@@ -583,8 +602,12 @@ berbeda, ubah `FRAME_SRC` dan koordinat `PHOTO_AREA` sesuai frame baru.
 
 - Ambil foto baru setelah backend berjalan.
 - Pastikan ekstensi file `.jpg`, `.jpeg`, atau `.png`.
+- Jika memakai nama file yang sama untuk pengujian berulang, pastikan file
+  benar-benar tertimpa/terganti; connector membandingkan ukuran dan waktu
+  modifikasinya.
 - Tunggu sampai Imaging Edge selesai menulis file.
-- Pastikan frame belum berisi foto; gunakan **Ambil ulang** jika perlu.
+- Jika frame sudah berisi foto, foto kamera terbaru akan menggantikannya secara
+  otomatis.
 - Periksa pesan error di terminal backend dan Console browser.
 
 ### Google Drive tidak bisa digunakan
