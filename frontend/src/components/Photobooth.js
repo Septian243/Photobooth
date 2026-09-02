@@ -18,6 +18,7 @@ export default function Photobooth() {
     const socketRef = useRef(null);
     const photosRef = useRef([]);
     const [photos, setPhotos] = useState([]);
+    const [frameAspectRatio, setFrameAspectRatio] = useState("1 / 1");
     const [cameraStatus, setCameraStatus] = useState("unavailable");
     const [cameraName, setCameraName] = useState("");
     const [driveSaveStatus, setDriveSaveStatus] = useState("idle");
@@ -69,6 +70,7 @@ export default function Photobooth() {
         const frame = new Image();
         frame.onload = () => {
             frameImgRef.current = frame;
+            setFrameAspectRatio(`${frame.width} / ${frame.height}`);
             drawCanvas();
         };
         frame.src = FRAME_SRC;
@@ -250,7 +252,7 @@ export default function Photobooth() {
                 <div style={frameColumn}>
                     <canvas
                         ref={canvasRef}
-                        style={canvasStyle}
+                        style={{ ...canvasStyle, aspectRatio: frameAspectRatio }}
                     />
 
                     <div style={photoControls}>
@@ -327,10 +329,10 @@ const centerCol = {
 };
 
 const canvasStyle = {
-    width: "auto",
+    // Preview mengikuti ukuran layar, tetapi rasio asli frame tetap terjaga.
+    width: "min(72vw, 720px, calc(100vh - 220px))",
     height: "auto",
     maxWidth: "100%",
-    maxHeight: "calc(100vh - 250px)",
     display: "block",
     margin: "0 auto",
 };
@@ -383,7 +385,7 @@ const mainContent = {
 };
 
 const frameColumn = {
-    width: "min(100%, 390px)",
+    width: "min(100%, 720px)",
     display: "flex",
     flexDirection: "column",
     alignItems: "stretch",
