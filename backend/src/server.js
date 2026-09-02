@@ -189,6 +189,22 @@ async function saveFramedPhoto(message, socket) {
   }
 }
 
+async function discardSourcePhoto(message, socket) {
+  const sourceName = typeof message.sourceName === "string" ? path.basename(message.sourceName) : "";
+  if (!sourceName || !isImage(sourceName)) return;
+
+  try {
+    await fs.promises.unlink(path.join(watchedFolder, sourceName)).catch((error) => {
+      if (error.code !== "ENOENT") throw error;
+    });
+    seenFiles.add(sourceName);
+    pendingFiles.delete(sourceName);
+    sendJson(socket, { type: "photo:discarded", sourceName });
+  } catch (error) {
+    sendJson(socket, { type: "photo:discard-error", sourceName, message: error.message });
+  }
+}
+
 async function markExistingFiles() {
   const files = await listImages();
   for (const fileName of files) seenFiles.add(fileName);
@@ -212,6 +228,7 @@ server.on("connection", (socket) => {
       const message = JSON.parse(raw.toString());
       if (message.type === "subscribe") sendJson(socket, cameraStatusMessage());
       if (message.type === "photo:save") void saveFramedPhoto(message, socket);
+      if (message.type === "photo:discard") void discardSourcePhoto(message, socket);
     } catch (error) {
       sendJson(socket, { type: "error", message: "Pesan connector tidak valid" });
     }
