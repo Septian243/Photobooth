@@ -1,82 +1,47 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
-const frameOptions = [
-    "/assets/frames/heart-frame-2.png",
-];
-
-const stickerOptions = [
-    "/assets/stickers/leaf.png",
-    "/assets/stickers/sparkles.png"
-];
-
+const FRAME_SRC = "/assets/frames/Contoh2.png";
 const PHOTO_AREA = {
-    x: 123,
-    y: 78,
-    width: 953,
-    height: 599,
-    shape: "rect",
+    // Area foto lingkaran pada Contoh2.png (2000 x 2000).
+    x: 130,
+    y: 125,
+    width: 1740,
+    height: 1740,
+    shape: "circle",
 };
-
 const CAMERA_BRIDGE_URL = process.env.REACT_APP_CAMERA_BRIDGE_URL || "ws://127.0.0.1:8765";
+const FRAME_SLOTS = [PHOTO_AREA];
 
-
-export default function PhotoBooth() {
+export default function Photobooth() {
     const canvasRef = useRef(null);
     const frameImgRef = useRef(null);
     const socketRef = useRef(null);
-    const autoSaveKeyRef = useRef(null);
-
-    const slots = [PHOTO_AREA];
-
-    const selectedFrame = frameOptions[0];
-    const [mode, setMode] = useState("photo");
-
+    const photosRef = useRef([]);
     const [photos, setPhotos] = useState([]);
-    const [photoCount, setPhotoCount] = useState(0);
-    const [canTakePhoto, setCanTakePhoto] = useState(true);
-    const [draggingPhoto, setDraggingPhoto] = useState(null);
-    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [cameraStatus, setCameraStatus] = useState("unavailable");
     const [cameraName, setCameraName] = useState("");
+    const [driveSaveStatus, setDriveSaveStatus] = useState("idle");
 
-    const [stickers, setStickers] = useState([]);
-    const [draggingSticker, setDraggingSticker] = useState(null);
-    const [selectedSticker, setSelectedSticker] = useState(null);
-    const photoCountRef = useRef(photoCount);
-    photoCountRef.current = photoCount;
-    // useEffects
+    photosRef.current = photos;
 
-    // frames
-    useEffect(() => {
-        if (!selectedFrame) return;
-        const img = new Image();
-        img.src = selectedFrame;
-
-        img.onload = () => {
-            frameImgRef.current = img;
-            drawCanvas();
-        }
-    }, [selectedFrame]);
-
-    const drawCanvas = () => {
+    const drawCanvas = useCallback(() => {
         const canvas = canvasRef.current;
-        if (!canvas || !frameImgRef.current) return;
+        const frame = frameImgRef.current;
+        if (!canvas || !frame) return;
 
         const ctx = canvas.getContext("2d");
-
-        const frameWidth = frameImgRef.current.width;
-        const frameHeight = frameImgRef.current.height;
+        const frameWidth = frame.width;
+        const frameHeight = frame.height;
         canvas.width = frameWidth;
         canvas.height = frameHeight;
+        ctx.clearRect(0, 0, frameWidth, frameHeight);
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        photos.forEach(p => {
-            const slot = slots[p.slotIndex];
-            const drawW = p.img.width * p.scale;
-            const drawH = p.img.height * p.scale;
-            const dx = slot.x + p.offsetX;
-            const dy = slot.y + p.offsetY;
+        photosRef.current.forEach(photo => {
+            const slot = FRAME_SLOTS[photo.slotIndex];
+            const drawWidth = photo.img.width * photo.scale;
+            const drawHeight = photo.img.height * photo.scale;
+            const drawX = slot.x + photo.offsetX;
+            const drawY = slot.y + photo.offsetY;
 
             ctx.save();
             ctx.beginPath();
@@ -92,80 +57,50 @@ export default function PhotoBooth() {
                 ctx.rect(slot.x, slot.y, slot.width, slot.height);
             }
             ctx.clip();
-            ctx.drawImage(p.img, dx, dy, drawW, drawH);
+            ctx.drawImage(photo.img, drawX, drawY, drawWidth, drawHeight);
             ctx.restore();
         });
-        ctx.drawImage(frameImgRef.current, 0, 0, frameWidth, frameHeight);
 
-        stickers.forEach((s, i) => {
-            ctx.drawImage(s.img, s.x, s.y, 150, 150);
-            if (i === selectedSticker) {
-                ctx.strokeStyle = "#ff7aa2";
-                ctx.lineWidth = 4;
-                ctx.strokeRect(s.x, s.y, 150, 150);
-            }
-        });
-    };
+        // Frame selalu berada di lapisan paling atas.
+        ctx.drawImage(frame, 0, 0, frameWidth, frameHeight);
+    }, []);
 
-    useEffect(drawCanvas, [photos, stickers, selectedSticker, photoCount]);
+    useEffect(() => {
+        const frame = new Image();
+        frame.onload = () => {
+            frameImgRef.current = frame;
+            drawCanvas();
+        };
+        frame.src = FRAME_SRC;
+    }, [drawCanvas]);
 
-    const handleBack = () => {
-        if (mode == "decorate") {
-            setMode("photo");
-            setCanTakePhoto(false);
-            setStickers([]);
-            setSelectedSticker(null);
-        } else {
-            setPhotos([]);
-            photoCountRef.current = 0;
-            setPhotoCount(0);
-            setStickers([]);
-            setSelectedSticker(null);
-            setMode("photo");
-            setCanTakePhoto(true);
-        }
-    };
+    useEffect(() => {
+        drawCanvas();
+    }, [photos, drawCanvas]);
 
-    // photos
     const addPhoto = (img, sourceName = null) => {
-        if (photoCountRef.current >= 1) return;
-        photoCountRef.current = 1;
+        if (photosRef.current.length >= 1) return;
 
-        const slot = slots[0];
+        const slot = FRAME_SLOTS[0];
         const scale = Math.max(slot.width / img.width, slot.height / img.height);
-        const drawW = img.width * scale;
-        const drawH = img.height * scale;
-        const offsetX = drawW > slot.width ? (slot.width - drawW) / 2 : 0;
-        const offsetY = drawH > slot.height ? (slot.height - drawH) / 2 : 0;
+        const drawWidth = img.width * scale;
+        const drawHeight = img.height * scale;
+        const photo = {
+            id: `${Date.now()}-${Math.random()}`,
+            img,
+            sourceName,
+            slotIndex: 0,
+            scale,
+            offsetX: drawWidth > slot.width ? (slot.width - drawWidth) / 2 : 0,
+            offsetY: drawHeight > slot.height ? (slot.height - drawHeight) / 2 : 0,
+        };
 
-        setPhotos(p => [
-            ...p,
-            {
-                id: `${Date.now()}-${Math.random()}`,
-                img,
-                sourceName,
-                slotIndex: photoCount,
-                scale,
-                offsetX,
-                offsetY,
-            }
-        ]);
-
-        setCanTakePhoto(true);
-
-        setPhotoCount(c => {
-            const next = c + 1;
-            if (next === 1) setMode("decorate");
-            return next;
-        });
+        photosRef.current = [photo];
+        setPhotos([photo]);
     };
 
     const addPhotoRef = useRef(addPhoto);
     addPhotoRef.current = addPhoto;
-    const selectedFrameRef = useRef(selectedFrame);
-    const modeRef = useRef(mode);
-    selectedFrameRef.current = selectedFrame;
-    modeRef.current = mode;
 
     useEffect(() => {
         let socket;
@@ -173,11 +108,11 @@ export default function PhotoBooth() {
         let stopped = false;
 
         const loadPhoto = (source, mimeType = "image/jpeg", sourceName = null) => {
-            if (!source || !selectedFrameRef.current || modeRef.current !== "photo") return;
+            if (!source || photosRef.current.length >= 1) return;
 
-            const img = new Image();
-            img.onload = () => addPhotoRef.current(img, sourceName);
-            img.src = source.startsWith("data:")
+            const image = new Image();
+            image.onload = () => addPhotoRef.current(image, sourceName);
+            image.src = source.startsWith("data:")
                 ? source
                 : `data:${mimeType};base64,${source}`;
         };
@@ -212,16 +147,19 @@ export default function PhotoBooth() {
             }
 
             if (message.type === "camera" || message.type === "status") {
-                const status = message.status || "unavailable";
-                setCameraStatus(status);
+                setCameraStatus(message.status || "unavailable");
                 setCameraName(message.name || message.camera?.name || "");
             }
+
+            if (message.type === "photo:saved") setDriveSaveStatus("saved");
+            if (message.type === "photo:save-disabled") setDriveSaveStatus("disabled");
+            if (message.type === "photo:save-error") setDriveSaveStatus("error");
         };
 
         const connect = () => {
             if (stopped) return;
-
             setCameraStatus("connecting");
+
             try {
                 socket = new WebSocket(CAMERA_BRIDGE_URL);
                 socket.onopen = () => {
@@ -251,413 +189,184 @@ export default function PhotoBooth() {
         };
     }, []);
 
-    useEffect(() => {
-        const photo = photos[0];
-        const socket = socketRef.current;
-        if (!photo || !canvasRef.current || !socket || socket.readyState !== WebSocket.OPEN) return;
-        if (autoSaveKeyRef.current === photo.id) return;
-
-        const data = canvasRef.current.toDataURL("image/png");
-        socket.send(JSON.stringify({
-            type: "photo:save",
-            sourceName: photo.sourceName,
-            mimeType: "image/png",
-            data,
-        }));
-        autoSaveKeyRef.current = photo.id;
-    }, [photos, cameraStatus]);
-
-    const uploadPhoto = e => {
-        const file = e.target.files[0];
+    const uploadPhoto = event => {
+        const file = event.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = () => {
-            const img = new Image();
-            img.src = reader.result;
-            img.onload = () => addPhoto(img);
+            const image = new Image();
+            image.onload = () => addPhoto(image);
+            image.src = reader.result;
         };
-
         reader.readAsDataURL(file);
-        e.target.value = "";
+        event.target.value = "";
     };
 
-    const redoLastPhoto = () => {
-        if (!photos.length) return;
+    const redoPhoto = () => {
+        const photo = photosRef.current[0];
+        if (!photo) return;
+
+        const socket = socketRef.current;
+        if (photo.sourceName && socket?.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "photo:discard", sourceName: photo.sourceName }));
+        }
+
+        photosRef.current = [];
         setPhotos([]);
-        photoCountRef.current = 0;
-        setPhotoCount(0);
-        setStickers([]);
-        setSelectedSticker(null);
-        setMode("photo");
-        setCanTakePhoto(true);
+        setDriveSaveStatus("idle");
     };
 
-    const getCoords = e => {
-        const r = canvasRef.current.getBoundingClientRect();
-        return {
-            x: (e.clientX - r.left) * (canvasRef.current.width / r.width),
-            y: (e.clientY - r.top) * (canvasRef.current.height / r.height)
-        };
-    };
-
-    // drag photos
-    const handleMouseDown = e => {
-        const { x, y } = getCoords(e);
-        if (mode === "photo") {
-            for (let i = photos.length - 1; i >= 0; i--) {
-                const p = photos[i];
-                const slot = slots[p.slotIndex];
-                const w = p.img.width * p.scale;
-                const h = p.img.height * p.scale;
-
-                if (
-                    x >= slot.x + p.offsetX &&
-                    x <= slot.x + p.offsetX + w &&
-                    y >= slot.y + p.offsetY &&
-                    y <= slot.y + p.offsetY + h
-                ) {
-                    setDraggingPhoto(i);
-                    setDragOffset({
-                        x: x - slot.x - p.offsetX,
-                        y: y - slot.y - p.offsetY
-                    });
-                    return;
-                }
-
-            }
+    const saveToGoogleDrive = () => {
+        const photo = photosRef.current[0];
+        const socket = socketRef.current;
+        if (!photo || !canvasRef.current || socket?.readyState !== WebSocket.OPEN) {
+            setDriveSaveStatus("error");
+            return;
         }
 
-        if (mode === "decorate") {
-            for (let i = stickers.length - 1; i >= 0; i--) {
-                const s = stickers[i];
-                if (x >= s.x && x <= s.x + 150 && y >= s.y && y <= s.y + 150) {
-                    setDraggingSticker(i);
-                    setSelectedSticker(i);
-                    setDragOffset({ x: x - s.x, y: y - s.y });
-                    return;
-                }
-            }
-        }
+        setDriveSaveStatus("saving");
+        socket.send(JSON.stringify({
+            type: "photo:save",
+            sourceName: photo.sourceName,
+            mimeType: "image/png",
+            data: canvasRef.current.toDataURL("image/png"),
+        }));
     };
-
-    const handleMouseMove = e => {
-        const { x, y } = getCoords(e);
-
-        if (draggingPhoto !== null && mode === "photo") {
-            setPhotos(prev => {
-                const updated = [...prev];
-                const p = updated[draggingPhoto];
-                const slot = slots[p.slotIndex];
-                const w = p.img.width * p.scale;
-                const h = p.img.height * p.scale;
-
-                p.offsetX = x - slot.x - dragOffset.x;
-                p.offsetY = y - slot.y - dragOffset.y;
-                p.offsetX = Math.min(Math.max(p.offsetX, slot.width - w), 0);
-                p.offsetY = Math.min(Math.max(p.offsetY, slot.height - h), 0);
-
-                return updated;
-            });
-        }
-
-        if (draggingSticker != null && mode === "decorate") {
-            setStickers(s => {
-                const u = [...s];
-                u[draggingSticker] = {
-                    ...u[draggingSticker],
-                    x: x - dragOffset.x,
-                    y: y - dragOffset.y
-                };
-                return u;
-            });
-        }
-    };
-
-    const handleMouseUp = () => {
-        setDraggingPhoto(null);
-        setDraggingSticker(null);
-    };
-
-    const addSticker = src => {
-        const img = new Image();
-        img.src = src;
-        img.onload = () =>
-            setStickers(s => [...s, { img, x: 400, y: 100 }]);
-    };
-
-    useEffect(() => {
-        const handleKeyDown = e => {
-            if (
-                (e.key === "Delete" || e.key === "Backspace") &&
-                selectedSticker != null &&
-                mode === "decorate"
-            ) {
-                setStickers(s => s.filter((_, i) => i != selectedSticker));
-                setSelectedSticker(null);
-            }
-        };
-
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [selectedSticker, mode]);
-
 
     const downloadPhoto = () => {
-        const a = document.createElement("a");
-        a.href = canvasRef.current.toDataURL("image.png");
-        a.download = "photo-strip.png";
-        a.click();
+        if (!canvasRef.current) return;
+        const link = document.createElement("a");
+        link.href = canvasRef.current.toDataURL("image/png");
+        link.download = "photobooth.png";
+        link.click();
     };
+
+    const hasPhoto = photos.length > 0;
 
     return (
         <div style={centerCol}>
-            {/* top bar with back btn and text */}
-            <div style={topBar}>
-                {false && selectedFrame && (
-                    <button
-                        style={{
-                            ...buttonStyle,
-                            position: "absolute",
-                            left: 0,
-                            top: 10,
-                            height: 40,
-                            padding: "0 16px",
-                            lineHeight: "40px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                        onClick={handleBack}
-                    > ← Back</button>
-                )}
+            <div style={mainContent}>
+                <div style={frameColumn}>
+                    <canvas
+                        ref={canvasRef}
+                        style={canvasStyle}
+                    />
 
-                <h1 style={titleBar}>
-                    {!selectedFrame
-                        ? "₊✩‧₊˚ Select a frame౨ৎ ˚₊✩‧₊"
-                        : mode === "photo"
-                            ? "⋆｡‧˚ʚ Smile :)ɞ˚‧｡⋆"
-                            : ". ݁₊ ⊹ . ݁Let’s decorate . ⊹ ₊ ݁."}
-
-                </h1>
-            </div>
-            <div style={mainContent} >
-                <div style={row}>
-                    <div>
-                        {false && mode === "photo" && (
-                            <>
-                                <div style={{ position: "relative", width: 400 }}>
-                                    <div style={externalCameraPanel}>
-                                        <div style={{ fontSize: 48 }}>📷</div>
-                                        <strong>{cameraName || "DSLR"}</strong>
-                                        <span>
-                                            {cameraStatus === "connected"
-                                                ? "Tekan tombol shutter pada kamera"
-                                                : "Hubungkan DSLR melalui connector"}
-                                        </span>
-                                        <small>1 frame = 1 foto</small>
-                                    </div>
-                                </div>
-
-                                {/* Buttons */}
-                                <div style={{ marginTop: 16, display: "flex", gap: 12 }}>
-                                    {canTakePhoto && cameraStatus !== "connected" && (
-                                        <>
-                                            <label style={{ ...buttonStyle, cursor: "pointer" }}>
-                                                Upload foto uji
-                                                <input
-                                                    type="file"
-                                                    accept="image /*"
-                                                    onChange={uploadPhoto}
-                                                    style={{ display: "none" }}
-                                                />
-                                            </label>
-                                        </>
-                                    )}
-                                    {cameraStatus === "connected" && canTakePhoto && (
-                                        <div style={cameraHint}>DSLR siap — ambil foto dari kamera</div>
-                                    )}
-                                    {/* redo btn */}
-                                    {photoCount > 0 && (
-                                        <button style={{
-                                            ...buttonStyle,
-                                            fontSize: 22,
-                                            padding: "4px 10px"
-                                        }}
-                                            onClick={redoLastPhoto}
-                                        >
-                                            ⟳
-                                        </button>
-                                    )}
-
-                                </div>
-                                <div style={bridgeStatus}>
-                                    <span
-                                        style={{
-                                            ...bridgeDot,
-                                            background:
-                                                cameraStatus === "connected" ? "#35a66f" :
-                                                    cameraStatus === "waiting" ? "#e0a52b" : "#b7a9a3",
-                                        }}
-                                    />
-                                    {cameraStatus === "connected"
-                                        ? `DSLR terhubung${cameraName ? `: ${cameraName}` : ""}`
-                                        : cameraStatus === "waiting"
-                                            ? "Connector aktif — menunggu DSLR"
-                                            : "Menunggu connector DSLR (foto uji bisa di-upload)"}
-                                </div>
-                            </>
-                        )}
-
-                        {false && mode === "decorate" && (
-                            stickerOptions.map((src) => (
-                                <img
-                                    key={src}
-                                    src={src}
-                                    alt="sticker"
-                                    onClick={() => addSticker(src)}
-                                    style={{ width: 50, cursor: "pointer" }}
+                    <div style={photoControls}>
+                        {!hasPhoto && (
+                            <label style={{ ...buttonStyle, cursor: "pointer" }}>
+                                Upload foto uji
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={uploadPhoto}
+                                    style={{ display: "none" }}
                                 />
-                            ))
-                        )
-                        }
+                            </label>
+                        )}
+                        {hasPhoto && (
+                            <button style={buttonStyle} onClick={redoPhoto}>
+                                Ambil ulang
+                            </button>
+                        )}
                     </div>
 
-                    {/* Display frame */}
-                    <div>
-                        <canvas ref={canvasRef}
+                    <div style={bridgeStatus}>
+                        <span
                             style={{
-                                // Preserve the native aspect ratio of each frame.
-                                width: "auto",
-                                height: "auto",
-                                maxWidth: 300,
-                                maxHeight: 500,
-                                display: "block",
-                                borderRadius: 16,
-                                boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+                                ...bridgeDot,
+                                background:
+                                    cameraStatus === "connected" ? "#35a66f" :
+                                        cameraStatus === "waiting" ? "#e0a52b" : "#b7a9a3",
                             }}
-                            onMouseDown={handleMouseDown}
-                            onMouseMove={handleMouseMove}
-                            onMouseUp={handleMouseUp}
                         />
+                        {cameraStatus === "connected"
+                            ? `Kamera terhubung${cameraName ? `: ${cameraName}` : ""}`
+                            : cameraStatus === "waiting"
+                                ? "Connector aktif — menunggu kamera"
+                                : "Connector kamera belum aktif"}
+                    </div>
 
-                        <div style={photoControls}>
-                            {photoCount === 0 && (
-                                <label style={{ ...buttonStyle, cursor: "pointer" }}>
-                                    Upload foto uji
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={uploadPhoto}
-                                        style={{ display: "none" }}
-                                    />
-                                </label>
-                            )}
-                            {photoCount > 0 && (
-                                <button style={buttonStyle} onClick={redoLastPhoto}>
-                                    Ambil ulang
+                    {hasPhoto && (
+                        <>
+                            <div style={{ ...photoControls, marginTop: 16 }}>
+                                <button
+                                    style={buttonStyle}
+                                    onClick={saveToGoogleDrive}
+                                    disabled={driveSaveStatus === "saving" || driveSaveStatus === "saved"}
+                                >
+                                    {driveSaveStatus === "saving" ? "Menyimpan..." : "Simpan ke Google Drive"}
                                 </button>
-                            )}
-                        </div>
-
-                        <div style={bridgeStatus}>
-                            <span
-                                style={{
-                                    ...bridgeDot,
-                                    background:
-                                        cameraStatus === "connected" ? "#35a66f" :
-                                            cameraStatus === "waiting" ? "#e0a52b" : "#b7a9a3",
-                                }}
-                            />
-                            {cameraStatus === "connected"
-                                ? `Kamera terhubung${cameraName ? `: ${cameraName}` : ""}`
-                                : cameraStatus === "waiting"
-                                    ? "Connector aktif — menunggu kamera"
-                                    : "Connector kamera belum aktif"}
-                        </div>
-
-                        {mode === "decorate" && (
-                            <div style={{
-                                marginTop: 16,
-                                display: "flex",
-                                justifyContent: "center",
-                            }}>
                                 <button style={buttonStyle} onClick={downloadPhoto}>
                                     Download
                                 </button>
                             </div>
-                        )}
-                    </div>
+
+                            {driveSaveStatus !== "idle" && (
+                                <div style={saveStatus}>
+                                    {driveSaveStatus === "saved" && "Berhasil disimpan ke Google Drive."}
+                                    {driveSaveStatus === "disabled" && "Google Drive belum diaktifkan."}
+                                    {driveSaveStatus === "error" && "Gagal menyimpan ke Google Drive."}
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
         </div>
-    )
+    );
 }
 
-// styles
 const centerCol = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 20
+    gap: 12,
+    width: "100%",
 };
-const topBar = {
-    width: 760,
-    height: 60,
-    position: "relative",
-    marginBottom: 20,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-}
+
+const canvasStyle = {
+    width: "auto",
+    height: "auto",
+    maxWidth: "100%",
+    maxHeight: "calc(100vh - 250px)",
+    display: "block",
+    margin: "0 auto",
+};
+
 const buttonStyle = {
-    padding: "10px 20px",
-    fontSize: 20,
+    padding: "10px 18px",
+    minHeight: 42,
+    fontSize: 15,
     cursor: "pointer",
-    fontFamily: "CantikaCute",
-    color: "#8c5b4a",
-    border: "2px solid #8c5b4a",
-    borderRadius: 8,
-    background: "white"
-};
-
-const externalCameraPanel = {
-    width: 400,
-    height: 300,
-    boxSizing: "border-box",
-    borderRadius: 12,
-    background: "linear-gradient(145deg, #fff8f5, #fce6ee)",
-    border: "2px dashed #d99aae",
-    color: "#8c5b4a",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    textAlign: "center",
-    padding: 24,
-};
-
-const cameraHint = {
-    color: "#8c5b4a",
-    fontSize: 16,
-    alignSelf: "center",
-    padding: "10px 0",
+    fontFamily: "inherit",
+    fontWeight: 500,
+    color: "#222",
+    border: "1px solid #b8b8b8",
+    borderRadius: 6,
+    background: "#fff",
+    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.06)",
 };
 
 const photoControls = {
     display: "flex",
     justifyContent: "center",
-    marginTop: 16,
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 12,
 };
 
 const bridgeStatus = {
     display: "flex",
     alignItems: "center",
+    justifyContent: "center",
     gap: 7,
     marginTop: 10,
-    color: "#8c5b4a",
+    color: "#555",
     fontSize: 13,
+    width: "100%",
 };
 
 const bridgeDot = {
@@ -667,18 +376,22 @@ const bridgeDot = {
     display: "inline-block",
 };
 
-const row = { display: "flex", gap: 40, alignItems: "flex-start" };
-const titleBar = {
-    margin: 0,
-    lineHeight: "60px",      // vertical center
-    textAlign: "center",     // horizontal center
-    width: "100%",            // occupy full width of top bar
-}
-
 const mainContent = {
-    height: 600, // fixed content height
-    width: 760,
+    width: "100%",
     display: "flex",
     justifyContent: "center",
-    alignItems: "flex-start",
-}
+};
+
+const frameColumn = {
+    width: "min(100%, 390px)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "stretch",
+};
+
+const saveStatus = {
+    marginTop: 8,
+    textAlign: "center",
+    color: "#555",
+    fontSize: 13,
+};
