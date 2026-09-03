@@ -41,7 +41,7 @@ const seenFiles = new Map();
 const pendingFiles = new Map();
 let folderAvailable = false;
 let drivePromise = null;
-let lastDeliveredMtime = 0;
+let pollRunning = false;
 
 function sendJson(socket, message) {
   if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -105,7 +105,7 @@ async function fileIsStable(filePath, fileName) {
 async function fileSignature(filePath) {
   try {
     const stats = await fs.promises.stat(filePath);
-    return `${stats.size}:${stats.mtimeMs}`;
+    return `${stats.size}:${stats.mtimeMs}:${stats.ctimeMs}`;
   } catch (error) {
     return null;
   }
@@ -273,25 +273,31 @@ server.on("connection", (socket) => {
 });
 
 setInterval(async () => {
-  const wasAvailable = folderAvailable;
-  const files = await listImages();
-  if (wasAvailable !== folderAvailable) broadcast(cameraStatusMessage());
-  if (!folderAvailable || clients.size === 0) return;
-  // Satu frame hanya menampilkan satu foto; prioritaskan file terbaru yang berubah.
-  for (const fileName of files) {
-    if (await fileHasChanged(fileName)) {
-      const modifiedAt = await fs.promises.stat(path.join(watchedFolder, fileName))
-        .then((stats) => stats.mtimeMs)
-        .catch(() => null);
-      if (modifiedAt !== null && modifiedAt <= lastDeliveredMtime) {
-        const signature = await fileSignature(path.join(watchedFolder, fileName));
-        if (signature) seenFiles.set(fileName, signature);
-        continue;
-      }
-      const delivered = await sendPhoto(fileName);
-      if (delivered && modifiedAt !== null) lastDeliveredMtime = modifiedAt;
-      break;
+  if (pollRunning) return;
+  pollRunning = true;
+
+  try {
+    const wasAvailable = folderAvailable;
+    const files = await listImages();
+    if (wasAvailable !== folderAvailable) broadcast(cameraStatusMessage());
+    if (!folderAvailable || clients.size === 0) return;
+
+    const changedFiles = [];
+    for (const fileName of files) {
+      if (await fileHasChanged(fileName)) changedFiles.push(fileName);
     }
+    if (changedFiles.length === 0) return;
+
+    const newestFile = changedFiles[0];
+    const delivered = await sendPhoto(newestFile);
+    if (!delivered) return;
+
+    for (const fileName of changedFiles.slice(1)) {
+      const signature = await fileSignature(path.join(watchedFolder, fileName));
+      if (signature) seenFiles.set(fileName, signature);
+    }
+  } finally {
+    pollRunning = false;
   }
 }, POLL_INTERVAL_MS);
 
