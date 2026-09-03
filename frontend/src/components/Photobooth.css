@@ -1,4 +1,4 @@
-/* ---------- stage ---------- */
+﻿/* ---------- stage ---------- */
 .pb-stage {
   display: flex;
   flex-direction: column;
@@ -97,6 +97,13 @@
   padding: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
   position: relative;
+  cursor: zoom-in;
+  transition: transform .25s var(--ease), box-shadow .25s var(--ease);
+}
+
+.pb-frame-wrap:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.12);
 }
 
 .pb-canvas {
@@ -142,6 +149,7 @@
 
 /* ---------- buttons ---------- */
 .btn-primary {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -151,22 +159,44 @@
   font-weight: 600;
   font-size: .9375rem;
   clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 100%, 14px 100%);
-  transition: transform .15s var(--ease), background .2s var(--ease);
+  transition: transform .25s var(--ease), box-shadow .3s var(--ease);
   border: none;
   cursor: pointer;
   font-family: inherit;
   text-decoration: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -20%;
+  width: 140%;
+  background: var(--flash);
+  transform: skewX(-14deg) scaleX(0);
+  transform-origin: left;
+  transition: transform .45s cubic-bezier(.22, 1, .36, 1);
+  z-index: -1;
 }
 
 .btn-primary:hover {
-  background: var(--flash-deep);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 10px 24px -4px color-mix(in srgb, var(--flash) 55%, transparent);
+}
+
+.btn-primary:hover::before {
+  transform: skewX(-14deg) scaleX(1);
 }
 
 .btn-primary:active {
-  transform: scale(.97);
+  transform: translateY(0) scale(.97);
 }
 
 .btn-ghost {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -179,12 +209,29 @@
   background: none;
   cursor: pointer;
   font-family: inherit;
-  transition: border-color .2s var(--ease), color .2s var(--ease);
+  transition: color .3s var(--ease), border-color .3s var(--ease);
+}
+
+.btn-ghost::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 100%;
+  height: 2px;
+  background: var(--flash);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .4s cubic-bezier(.22, 1, .36, 1);
 }
 
 .btn-ghost:hover {
   color: var(--flash);
-  border-color: var(--flash);
+  border-color: transparent;
+}
+
+.btn-ghost:hover::after {
+  transform: scaleX(1);
 }
 
 /* ---------- key hint ---------- */
@@ -513,7 +560,7 @@
   font-size: 1.5rem;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.05);
-  transition: background .2s;
+  transition: background .2s, transform .2s var(--ease);
   cursor: pointer;
   border: none;
   color: var(--carbon);
@@ -521,4 +568,86 @@
 
 .pb-close-qr:hover {
   background: rgba(0, 0, 0, 0.1);
+  transform: rotate(90deg) scale(1.1);
+}
+
+/* ---------- fullscreen photo preview modal (glassmorphism, matches qr modal) ---------- */
+.pb-photo-preview-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(19, 18, 17, 0.3);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s var(--ease);
+}
+
+.pb-photo-preview-modal.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pb-photo-preview-img {
+  max-width: min(560px, 90vw);
+  max-height: 85vh;
+  width: auto;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  transform: translateY(30px) scale(0.95);
+  transition: transform 0.4s var(--ease);
+}
+
+.pb-photo-preview-modal.show .pb-photo-preview-img {
+  transform: translateY(0) scale(1);
+}
+
+.pb-close-preview {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+  transition: background .2s, transform .2s var(--ease);
+  cursor: pointer;
+  border: none;
+  color: var(--paper);
+  z-index: 10000;
+}
+
+.pb-close-preview:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: rotate(90deg) scale(1.1);
+}
+
+/* ---------- retake action inside fullscreen preview ---------- */
+.pb-preview-actions {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+}
+
+.btn-ghost--light {
+  color: var(--paper);
+  border-bottom-color: var(--paper);
+}
+
+.btn-ghost--light:hover {
+  color: var(--flash);
 }

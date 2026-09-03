@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./Photobooth.css";
 
@@ -25,6 +25,9 @@ export default function Photobooth() {
     const [cameraName, setCameraName] = useState("");
     const [driveSaveStatus, setDriveSaveStatus] = useState("idle");
     const [showQrModal, setShowQrModal] = useState(false);
+    const [showPhotoPreview, setShowPhotoPreview] = useState(false);
+    const [previewSrc, setPreviewSrc] = useState(null);
+    const [photoLoadError, setPhotoLoadError] = useState(false);
 
     photosRef.current = photos;
 
@@ -89,6 +92,16 @@ export default function Photobooth() {
         drawCanvas();
     }, [photos, drawCanvas]);
 
+    useEffect(() => {
+        const handleEscape = e => {
+            if (e.key !== "Escape") return;
+            if (showPhotoPreview) setShowPhotoPreview(false);
+            if (showQrModal) setShowQrModal(false);
+        };
+        window.addEventListener("keydown", handleEscape);
+        return () => window.removeEventListener("keydown", handleEscape);
+    }, [showPhotoPreview, showQrModal]);
+
     const discardSourcePhoto = sourceName => {
         const socket = socketRef.current;
         if (sourceName && socket?.readyState === WebSocket.OPEN) {
@@ -114,6 +127,7 @@ export default function Photobooth() {
         photosRef.current = [photo];
         setPhotos([photo]);
         setDriveSaveStatus("idle");
+        setPhotoLoadError(false);
     };
 
     const addPhotoRef = useRef(addPhoto);
@@ -129,6 +143,7 @@ export default function Photobooth() {
 
             const image = new Image();
             image.onload = () => addPhotoRef.current(image, sourceName);
+            image.onerror = () => setPhotoLoadError(true);
             image.src = source.startsWith("data:")
                 ? source
                 : `data:${mimeType};base64,${source}`;
@@ -217,8 +232,10 @@ export default function Photobooth() {
         reader.onload = () => {
             const image = new Image();
             image.onload = () => addPhoto(image);
+            image.onerror = () => setPhotoLoadError(true);
             image.src = reader.result;
         };
+        reader.onerror = () => setPhotoLoadError(true);
         reader.readAsDataURL(file);
         event.target.value = "";
     };
@@ -261,6 +278,12 @@ export default function Photobooth() {
     };
 
     const hasPhoto = photos.length > 0;
+
+    const openPhotoPreview = () => {
+        if (!canvasRef.current || !hasPhoto) return;
+        setPreviewSrc(canvasRef.current.toDataURL("image/png"));
+        setShowPhotoPreview(true);
+    };
 
     // Camera status styling mappings
     const statusLabel =
@@ -314,6 +337,11 @@ export default function Photobooth() {
                                     <span className="pb-status-dot" style={{ background: statusColor, display: "inline-block", marginRight: 8 }} />
                                     {statusLabel}
                                 </div>
+                                {photoLoadError && (
+                                    <div className="cam-hint error" style={{ position: "static", padding: "8px 0 0" }}>
+                                        Gagal memuat foto. Coba ambil ulang.
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -323,7 +351,7 @@ export default function Photobooth() {
                         className="pb-decorate-layout"
                         style={{ display: hasPhoto ? "flex" : "none" }}
                     >
-                        <div className="pb-frame-wrap">
+                        <div className="pb-frame-wrap" onClick={openPhotoPreview}>
                             <canvas
                                 ref={canvasRef}
                                 className="pb-canvas"
@@ -370,6 +398,28 @@ export default function Photobooth() {
                     )}
                 </div>
             </main>
+
+            {/* Fullscreen Photo Preview Modal rendered via Portal */}
+            {createPortal(
+                <div className={`pb-photo-preview-modal ${showPhotoPreview ? 'show' : ''}`} onClick={(e) => {
+                    if (e.target.classList.contains('pb-photo-preview-modal')) setShowPhotoPreview(false);
+                }}>
+                    <button className="pb-close-preview" aria-label="Tutup" onClick={() => setShowPhotoPreview(false)}>&times;</button>
+                    {previewSrc && <img src={previewSrc} alt="Preview foto" className="pb-photo-preview-img" />}
+                    <div className="pb-preview-actions">
+                        <button
+                            className="btn-ghost btn-ghost--light"
+                            onClick={() => {
+                                setShowPhotoPreview(false);
+                                redoPhoto();
+                            }}
+                        >
+                            Ulangi Sesi
+                        </button>
+                    </div>
+                </div>,
+                document.body
+            )}
 
             {/* QR Modal rendered via Portal */}
             {createPortal(
