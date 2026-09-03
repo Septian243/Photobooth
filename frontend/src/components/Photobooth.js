@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./Photobooth.css";
 
@@ -20,7 +20,6 @@ export default function Photobooth() {
     const socketRef = useRef(null);
     const photosRef = useRef([]);
     const [photos, setPhotos] = useState([]);
-    const [frameAspectRatio, setFrameAspectRatio] = useState("1 / 1");
     const [cameraStatus, setCameraStatus] = useState("unavailable");
     const [cameraName, setCameraName] = useState("");
     const [driveSaveStatus, setDriveSaveStatus] = useState("idle");
@@ -82,7 +81,6 @@ export default function Photobooth() {
         const frame = new Image();
         frame.onload = () => {
             frameImgRef.current = frame;
-            setFrameAspectRatio(`${frame.width} / ${frame.height}`);
             drawCanvas();
         };
         frame.src = FRAME_SRC;
@@ -274,7 +272,6 @@ export default function Photobooth() {
         link.click();
         discardSourcePhoto(photo?.sourceName);
         clearPhoto();
-        setShowQrModal(true);
     };
 
     const hasPhoto = photos.length > 0;
