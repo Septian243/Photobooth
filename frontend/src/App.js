@@ -1,50 +1,73 @@
 import './App.css';
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Photobooth from "./components/Photobooth";
-import "./styles/global.css"
-const logoSrc = "/assets/logo/jiggleduo-logo.png";
+import "./styles/global.css";
 
 function App() {
+  const [clock, setClock] = useState('');
+
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      const d = now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+      const t = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      setClock(d + ' · ' + t);
+    };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
-    <div className="App" style={{
-      minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center"
-    }}>
-      <div style = {{
-        width: "100%",
-        maxWidth: 1200,
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "20px 32px"
-      }}>
-        <img src={logoSrc} alt="JiggleDuo Logo" style={{ width: 50 }} />
-        <h1 style={{
-          fontFamily: "CantikaCute",
-          color: "#8c5b4a",
-          margin: 0
-        }}>
-          JiggleDuo Photobooth
-        </h1>
+    <>
+      {/* Decorative: crop marks */}
+      <div className="crop-mark cm-tl" aria-hidden="true" />
+      <div className="crop-mark cm-tr" aria-hidden="true" />
+      <div className="crop-mark cm-bl" aria-hidden="true" />
+      <div className="crop-mark cm-br" aria-hidden="true" />
+
+      {/* Decorative: film strip left */}
+      <div className="strip-left" aria-hidden="true" />
+
+      {/* Decorative: EXIF text right */}
+      <div className="strip-right" aria-hidden="true">
+        <span>F/2.8 — 1/125S — ISO 200 — 35MM — F/2.8 — 1/125S — ISO 200 — 35MM</span>
       </div>
 
-      <div style={{
-        flex: 1,
-        width: "100%",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        paddingBottom: "40px"
-      }}
-      >
 
-      <Photobooth />
 
+      {/* Decorative: halftone & diamond dot */}
+      <div className="deco-halftone" aria-hidden="true" />
+      <div className="deco-dot" aria-hidden="true" />
+
+      {/* Header */}
+      <header className="site-header">
+        <div className="topbar">
+          <div className="mark">ALL VISUAL <b>CAPTURE</b></div>
+          <img
+            src="/assets/images/alvic.png"
+            className="topbar-logo"
+            alt="Alvic Logo"
+          />
+          <div className="tag">
+            When The Visual Matters<i aria-hidden="true" />
+          </div>
+        </div>
+      </header>
+
+      {/* Main content */}
+      <div className="app-wrap">
+        <Photobooth />
       </div>
-    </div>
+
+      {/* Footer */}
+      <footer className="site-footer">
+        <span>Alvic Photobooth — Tiga Serangkai University</span>
+        <span>{clock}</span>
+      </footer>
+    </>
   );
 }
 
 export default App;
+

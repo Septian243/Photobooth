@@ -1,11 +1,73 @@
-@font-face {
-  font-family: "CantikaCute";
-  src: url("../../public/assets/fonts/Cantika\ Cute\ Handwriting.otf") format("opentype");
-  font-weight: normal;
-  font-style: normal;
+@import url('./fonts.css');
+
+:root {
+  --paper: #fdfdfb;
+  --paper-dim: #f2f1ec;
+  --carbon: #131211;
+  --carbon-soft: #4a4744;
+  --flash: #e5342a;
+  --flash-deep: #a8241b;
+  --line: rgba(19, 18, 17, 0.14);
+  --ease: cubic-bezier(.22, .9, .32, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  font-family: "CantikaCute", cursive, sans-serif;
-  color: #8c5b4a;
+  background: var(--paper);
+  color: var(--carbon);
+  font-family: 'Manrope', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  position: relative;
+  padding-bottom: 64px;
 }
+
+::selection {
+  background: var(--flash);
+  color: #fff;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--flash);
+  outline-offset: 3px;
+}
+
+h1, h2, h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: .4;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: .001ms !important;
+    transition-duration: .001ms !important;
+  }
+}
