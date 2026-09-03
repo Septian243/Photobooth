@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import "./Photobooth.css";
 
 const FRAME_SRC = "/assets/frames/Contoh2.png";
 const PHOTO_AREA = {
@@ -19,9 +21,12 @@ export default function Photobooth() {
     const photosRef = useRef([]);
     const [photos, setPhotos] = useState([]);
     const [frameAspectRatio, setFrameAspectRatio] = useState("1 / 1");
+    const videoRef = useRef(null);
+    const [webcamActive, setWebcamActive] = useState(false);
     const [cameraStatus, setCameraStatus] = useState("unavailable");
     const [cameraName, setCameraName] = useState("");
     const [driveSaveStatus, setDriveSaveStatus] = useState("idle");
+    const [showQrModal, setShowQrModal] = useState(false);
 
     photosRef.current = photos;
 
@@ -165,7 +170,10 @@ export default function Photobooth() {
                 setCameraName(message.name || message.camera?.name || "");
             }
 
-            if (message.type === "photo:saved") clearPhoto();
+            if (message.type === "photo:saved") {
+                setShowQrModal(true); 
+                clearPhoto();
+            }
             if (message.type === "photo:save-disabled") setDriveSaveStatus("disabled");
             if (message.type === "photo:save-error") setDriveSaveStatus("error");
         };
@@ -251,162 +259,202 @@ export default function Photobooth() {
         link.click();
         discardSourcePhoto(photo?.sourceName);
         clearPhoto();
+        setShowQrModal(true);
     };
 
+    const startWebcam = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                setWebcamActive(true);
+                setCameraStatus("connected");
+                setCameraName("Webcam Laptop");
+            }
+        } catch (err) {
+            console.error("Error accessing webcam:", err);
+            alert("Tidak dapat mengakses webcam.");
+        }
+    };
+
+    const captureWebcam = () => {
+        if (!videoRef.current) return;
+        const video = videoRef.current;
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const img = new Image();
+        img.src = canvas.toDataURL("image/jpeg");
+        img.onload = () => addPhoto(img, "Webcam");
+    };
+
+    const stopWebcam = () => {
+        if (videoRef.current && videoRef.current.srcObject) {
+            videoRef.current.srcObject.getTracks().forEach(t => t.stop());
+            setWebcamActive(false);
+            setCameraStatus("unavailable");
+            setCameraName("");
+        }
+    };
+
+    useEffect(() => {
+        return () => stopWebcam();
+    }, []);
+
+    useEffect(() => {
+        const handleKeyDown = e => {
+            if (e.code === "Space" && webcamActive && !hasPhoto) {
+                e.preventDefault();
+                captureWebcam();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [webcamActive, photos]);
+
     const hasPhoto = photos.length > 0;
+    
+    // Camera status styling mappings
+    const statusLabel =
+        cameraStatus === "connected"
+            ? "Kamera terhubung" + (cameraName ? `: ${cameraName}` : "")
+            : cameraStatus === "waiting"
+                ? "Connector aktif — menunggu kamera"
+                : cameraStatus === "connecting"
+                    ? "Menyambungkan connector…"
+                    : "Connector kamera belum aktif";
+
+    const statusColor =
+        cameraStatus === "connected" ? "#35a66f" :
+            cameraStatus === "waiting" ? "#e0a52b" : "var(--carbon-soft)";
 
     return (
-        <div style={centerCol}>
-            <div style={mainContent}>
-                <div style={frameColumn}>
-                    <canvas
-                        ref={canvasRef}
-                        style={{ ...canvasStyle, aspectRatio: frameAspectRatio }}
-                    />
+        <>
+            <main className="pb-stage">
+                <svg className="pb-deco-aperture" viewBox="0 0 400 400" aria-hidden="true">
+                    <circle cx="200" cy="200" r="170" />
+                    <circle cx="200" cy="200" r="118" />
+                    <g>
+                        <line x1="200" y1="26" x2="200" y2="86" />
+                        <line x1="200" y1="374" x2="200" y2="314" />
+                        <line x1="26" y1="200" x2="86" y2="200" />
+                        <line x1="374" y1="200" x2="314" y2="200" />
+                        <line x1="77" y1="77" x2="119" y2="119" />
+                        <line x1="323" y1="323" x2="281" y2="281" />
+                        <line x1="323" y1="77" x2="281" y2="119" />
+                        <line x1="77" y1="323" x2="119" y2="281" />
+                    </g>
+                    <circle className="pb-deco-center-dot" cx="200" cy="200" r="5" />
+                </svg>
 
-                    <div style={photoControls}>
-                        {!hasPhoto && (
-                            <label style={{ ...buttonStyle, cursor: "pointer" }}>
-                                Upload foto uji
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={uploadPhoto}
-                                    style={{ display: "none" }}
-                                />
-                            </label>
-                        )}
-                        {hasPhoto && (
-                            <button
-                                style={buttonStyle}
-                                onClick={redoPhoto}
-                                disabled={driveSaveStatus === "saving"}
-                            >
-                                Ambil ulang
-                            </button>
-                        )}
-                    </div>
+                <div className="pb-body">
 
-                    <div style={bridgeStatus}>
-                        <span
-                            style={{
-                                ...bridgeDot,
-                                background:
-                                    cameraStatus === "connected" ? "#35a66f" :
-                                        cameraStatus === "waiting" ? "#e0a52b" : "#b7a9a3",
-                            }}
-                        />
-                        {cameraStatus === "connected"
-                            ? `Kamera terhubung${cameraName ? `: ${cameraName}` : ""}`
-                            : cameraStatus === "waiting"
-                                ? "Connector aktif — menunggu kamera"
-                                : "Connector kamera belum aktif"}
-                    </div>
+                    {/* === WAITING MODE: viewfinder placeholder === */}
+                    <div
+                        className="camera-col"
+                        style={{ display: !hasPhoto ? "flex" : "none" }}
+                    >
+                        <div className={`viewfinder ${webcamActive ? 'is-live' : ''}`}>
+                            <div className="placeholder-grid" />
+                            <div className="bracket tl" />
+                            <div className="bracket tr" />
+                            <div className="bracket bl" />
+                            <div className="bracket br" />
 
-                    {hasPhoto && (
-                        <>
-                            <div style={{ ...photoControls, marginTop: 16 }}>
-                                <button
-                                    style={buttonStyle}
-                                    onClick={saveToGoogleDrive}
-                                    disabled={driveSaveStatus === "saving" || driveSaveStatus === "saved"}
-                                >
-                                    {driveSaveStatus === "saving" ? "Menyimpan..." : "Simpan ke Google Drive"}
-                                </button>
-                                <button style={buttonStyle} onClick={downloadPhoto}>
-                                    Download
-                                </button>
-                            </div>
+                            <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                            />
 
-                            {driveSaveStatus !== "idle" && (
-                                <div style={saveStatus}>
-                                    {driveSaveStatus === "saved" && "Berhasil disimpan ke Google Drive."}
-                                    {driveSaveStatus === "disabled" && "Google Drive belum diaktifkan."}
-                                    {driveSaveStatus === "error" && "Gagal menyimpan ke Google Drive."}
+                            <div className="cam-hint">
+                                <div>
+                                    <span className="pb-status-dot" style={{ background: statusColor, display: "inline-block", marginRight: 8 }} />
+                                    {statusLabel}
                                 </div>
-                            )}
-                        </>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* === PHOTO RESULT MODE === */}
+                    <div
+                        className="pb-decorate-layout"
+                        style={{ display: hasPhoto ? "flex" : "none" }}
+                    >
+                        <div className="pb-frame-wrap">
+                            <canvas
+                                ref={canvasRef}
+                                className="pb-canvas"
+                            />
+                        </div>
+
+                        {hasPhoto && (
+                            <div className="pb-controls pb-controls--side">
+                                <h2 className="pb-decorate-title">Foto kamu sudah jadi.</h2>
+                                <p className="pb-decorate-sub">Simpan foto, atau ulangi sesi kalau mau coba lagi.</p>
+                                <div className="pb-decorate-actions">
+                                    <button 
+                                        className="btn-primary" 
+                                        onClick={saveToGoogleDrive}
+                                        disabled={driveSaveStatus === "saving" || driveSaveStatus === "saved"}
+                                    >
+                                        {driveSaveStatus === "saving" ? "Menyimpan..." : "Simpan ke Google Drive"}
+                                    </button>
+                                    <button className="btn-primary" onClick={downloadPhoto}>Download Lokal</button>
+                                    <button className="btn-ghost" onClick={redoPhoto}>Ulangi Sesi</button>
+                                </div>
+                                
+                                {driveSaveStatus !== "idle" && (
+                                    <p style={{ marginTop: 12, fontSize: 13, color: "var(--carbon-soft)" }}>
+                                        {driveSaveStatus === "saved" && "Berhasil disimpan ke Google Drive."}
+                                        {driveSaveStatus === "disabled" && "Google Drive belum diaktifkan."}
+                                        {driveSaveStatus === "error" && "Gagal menyimpan ke Google Drive."}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Controls untuk waiting mode */}
+                    {!hasPhoto && (
+                        <div className="pb-controls">
+                            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+                                <label className="btn-primary" style={{ cursor: "pointer" }}>
+                                    Upload Foto Uji
+                                    <input type="file" accept="image/*" onChange={uploadPhoto} style={{ display: "none" }} />
+                                </label>
+                                {!webcamActive && (
+                                    <button className="btn-ghost" onClick={startWebcam}>Akses Webcam</button>
+                                )}
+                                {webcamActive && (
+                                    <button className="btn-primary" onClick={captureWebcam}>Ambil Foto (Spasi)</button>
+                                )}
+                            </div>
+                        </div>
                     )}
                 </div>
-            </div>
-        </div>
+            </main>
+
+            {/* QR Modal rendered via Portal */}
+            {createPortal(
+                <div className={`pb-qr-modal ${showQrModal ? 'show' : ''}`} onClick={(e) => {
+                    if (e.target.classList.contains('pb-qr-modal')) setShowQrModal(false);
+                }}>
+                    <div className="pb-qr-modal-content">
+                        <button className="pb-close-qr" aria-label="Tutup" onClick={() => setShowQrModal(false)}>&times;</button>
+                        <h3>Foto Tersimpan!</h3>
+                        <img src="/assets/images/gdrive-qrcode.png" alt="Google Drive QR Code" />
+                        <p>Scan QR code di atas untuk membuka folder Google Drive dan melihat hasil fotomu.</p>
+                    </div>
+                </div>,
+                document.body
+            )}
+        </>
     );
 }
-
-const centerCol = {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 12,
-    width: "100%",
-};
-
-const canvasStyle = {
-    // Preview mengikuti ukuran layar, tetapi rasio asli frame tetap terjaga.
-    width: "min(72vw, 720px, calc(100vh - 220px))",
-    height: "auto",
-    maxWidth: "100%",
-    display: "block",
-    margin: "0 auto",
-};
-
-const buttonStyle = {
-    padding: "10px 18px",
-    minHeight: 42,
-    fontSize: 15,
-    cursor: "pointer",
-    fontFamily: "inherit",
-    fontWeight: 500,
-    color: "#222",
-    border: "1px solid #b8b8b8",
-    borderRadius: 6,
-    background: "#fff",
-    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.06)",
-};
-
-const photoControls = {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 12,
-};
-
-const bridgeStatus = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    marginTop: 10,
-    color: "#555",
-    fontSize: 13,
-    width: "100%",
-};
-
-const bridgeDot = {
-    width: 9,
-    height: 9,
-    borderRadius: "50%",
-    display: "inline-block",
-};
-
-const mainContent = {
-    width: "100%",
-    display: "flex",
-    justifyContent: "center",
-};
-
-const frameColumn = {
-    width: "min(100%, 720px)",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "stretch",
-};
-
-const saveStatus = {
-    marginTop: 8,
-    textAlign: "center",
-    color: "#555",
-    fontSize: 13,
-};
