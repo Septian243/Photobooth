@@ -2,14 +2,14 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./Photobooth.css";
 
-const FRAME_SRC = "/assets/frames/Contoh2.png";
+const FRAME_SRC = "/assets/frames/Frame.png";
 const PHOTO_AREA = {
-    // Area foto lingkaran pada Contoh2.png (2000 x 2000).
-    x: 130,
-    y: 125,
-    width: 1740,
-    height: 1740,
-    shape: "circle",
+    // Area foto pada Frame.png (1468 x 2628) — persegi panjang.
+    x: 115,
+    y: 695,
+    width: 1208,
+    height: 856,
+    shape: "rect",
 };
 const CAMERA_BRIDGE_URL = process.env.REACT_APP_CAMERA_BRIDGE_URL || "ws://127.0.0.1:8765";
 const FRAME_SLOTS = [PHOTO_AREA];
@@ -169,7 +169,7 @@ export default function Photobooth() {
             }
 
             if (message.type === "photo:saved") {
-                setShowQrModal(true); 
+                setShowQrModal(true);
                 clearPhoto();
             }
             if (message.type === "photo:save-disabled") setDriveSaveStatus("disabled");
@@ -261,7 +261,7 @@ export default function Photobooth() {
     };
 
     const hasPhoto = photos.length > 0;
-    
+
     // Camera status styling mappings
     const statusLabel =
         cameraStatus === "connected"
@@ -335,8 +335,8 @@ export default function Photobooth() {
                                 <h2 className="pb-decorate-title">Foto kamu sudah jadi.</h2>
                                 <p className="pb-decorate-sub">Simpan foto, atau ulangi sesi kalau mau coba lagi.</p>
                                 <div className="pb-decorate-actions">
-                                    <button 
-                                        className="btn-primary" 
+                                    <button
+                                        className="btn-primary"
                                         onClick={saveToGoogleDrive}
                                         disabled={driveSaveStatus === "saving" || driveSaveStatus === "saved"}
                                     >
@@ -345,7 +345,7 @@ export default function Photobooth() {
                                     <button className="btn-primary" onClick={downloadPhoto}>Download Lokal</button>
                                     <button className="btn-ghost" onClick={redoPhoto}>Ulangi Sesi</button>
                                 </div>
-                                
+
                                 {driveSaveStatus !== "idle" && (
                                     <p style={{ marginTop: 12, fontSize: 13, color: "var(--carbon-soft)" }}>
                                         {driveSaveStatus === "saved" && "Berhasil disimpan ke Google Drive."}
