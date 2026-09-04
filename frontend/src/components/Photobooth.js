@@ -183,7 +183,7 @@ export default function Photobooth() {
 
             if (message.type === "photo:saved") {
                 setShowQrModal(true);
-                clearPhoto();
+                setDriveSaveStatus("saved");
             }
             if (message.type === "photo:save-disabled") setDriveSaveStatus("disabled");
             if (message.type === "photo:save-error") setDriveSaveStatus("error");
@@ -270,8 +270,8 @@ export default function Photobooth() {
         link.href = canvasRef.current.toDataURL("image/png");
         link.download = "photobooth.png";
         link.click();
-        discardSourcePhoto(photo?.sourceName);
-        clearPhoto();
+        
+        setShowQrModal(true);
     };
 
     const hasPhoto = photos.length > 0;
@@ -332,7 +332,7 @@ export default function Photobooth() {
                         {hasPhoto && (
                             <div className="pb-controls pb-controls--side">
                                 <h2 className="pb-decorate-title">Foto kamu sudah jadi.</h2>
-                                <p className="pb-decorate-sub">Simpan foto, atau ulangi sesi kalau mau coba lagi.</p>
+                                <p className="pb-decorate-sub">Simpan foto untuk melihat hasilnya.</p>
                                 <div className="pb-decorate-actions">
                                     <button
                                         className="btn-primary"
@@ -342,7 +342,6 @@ export default function Photobooth() {
                                         {driveSaveStatus === "saving" ? "Menyimpan..." : "Simpan ke Google Drive"}
                                     </button>
                                     <button className="btn-primary" onClick={downloadPhoto}>Download Lokal</button>
-                                    <button className="btn-ghost" onClick={redoPhoto}>Ulangi Sesi</button>
                                 </div>
 
                                 {driveSaveStatus !== "idle" && (
@@ -378,15 +377,7 @@ export default function Photobooth() {
                     <button className="pb-close-preview" aria-label="Tutup" onClick={() => setShowPhotoPreview(false)}>&times;</button>
                     {previewSrc && <img src={previewSrc} alt="Preview foto" className="pb-photo-preview-img" />}
                     <div className="pb-preview-actions">
-                        <button
-                            className="btn-ghost btn-ghost--light"
-                            onClick={() => {
-                                setShowPhotoPreview(false);
-                                redoPhoto();
-                            }}
-                        >
-                            Ulangi Sesi
-                        </button>
+                        {/* Tombol aksi bisa ditambahkan di sini jika diperlukan */}
                     </div>
                 </div>,
                 document.body
