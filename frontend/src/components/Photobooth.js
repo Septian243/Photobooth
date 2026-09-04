@@ -317,36 +317,10 @@ export default function Photobooth() {
 
                 <div className="pb-body">
 
-                    {/* === WAITING MODE: viewfinder placeholder === */}
-                    <div
-                        className="camera-col"
-                        style={{ display: !hasPhoto ? "flex" : "none" }}
-                    >
-                        <div className="viewfinder">
-                            <div className="placeholder-grid" />
-                            <div className="bracket tl" />
-                            <div className="bracket tr" />
-                            <div className="bracket bl" />
-                            <div className="bracket br" />
-
-                            <div className="cam-hint">
-                                <div>
-                                    <span className="pb-status-dot" style={{ background: statusColor, display: "inline-block", marginRight: 8 }} />
-                                    {statusLabel}
-                                </div>
-                                {photoLoadError && (
-                                    <div className="cam-hint error" style={{ position: "static", padding: "8px 0 0" }}>
-                                        Gagal memuat foto. Coba ambil ulang.
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
                     {/* === PHOTO RESULT MODE === */}
                     <div
                         className="pb-decorate-layout"
-                        style={{ display: hasPhoto ? "flex" : "none" }}
+                        style={{ display: "flex" }}
                     >
                         <div className="pb-frame-wrap" onClick={openPhotoPreview}>
                             <canvas
